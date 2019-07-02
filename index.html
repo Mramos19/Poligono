@@ -1,0 +1,133 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>ArcGIS JavaScript Tutorials: Draw graphics</title>
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.11/esri/css/main.css">  
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" ></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" ></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+  <script src="https://js.arcgis.com/4.11/"></script> 
+  <script>  
+    function Iniciar(){
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/layers/GraphicsLayer",
+        "esri/widgets/Sketch"
+      ], function(Map, MapView, GraphicsLayer, Sketch) {
+
+        // Creat a temporary layer for graphics
+        var graphicsLayer = new GraphicsLayer();
+
+        var map = new Map({
+          basemap: "streets-navigation-vector",
+          layers: [graphicsLayer]          
+        });
+        
+        var view = new MapView({
+          container: "viewDiv",
+          map: map,          
+          center: [-86.247, 11.758]//, //Longitud y latitud
+          //zoom: 9
+        });
+
+        // Sketch widget
+        var sketch = new Sketch({
+          view: view,
+          layer: graphicsLayer
+        });
+
+        view.on("click", function(event) {
+          // you must overwrite default click-for-popup
+          // behavior to display your own popup
+          view.popup.autoOpenEnabled = false;
+
+          // Get the coordinates of the click on the view
+          var lat = Math.round(event.mapPoint.latitude * 1000) / 1000;
+          var lon = Math.round(event.mapPoint.longitude * 1000) / 1000;
+          console.log(lat + '/'+lon);
+          });
+
+        // Add widget to the view
+        view.ui.add(sketch, "top-right");  
+
+        sketch.on("create", function(event) {     
+           console.log(view);
+          if (event.state === "complete") { 
+
+            //Array de coordenadas
+            var geometry = event.graphic.geometry.rings[0];   
+            //var geometry = event.graphic.centroid;   
+            
+            console.log(geometry);
+            var parcela = "";
+
+            //Se recorre y se arma el string de las coordenadas en el siguiente formato
+            //latitud,longitud|latitud,longitud
+            for(i=0; i<geometry.length; i++){
+              var coord =geometry[i].toString().split(',');              
+              coord = coord[0] + ',' + coord[1];            
+              parcela+= coord + "|" ;
+            }
+
+            //se quita el ultimo separador |
+            $('#txtPoligono').val(parcela.substring(0, parcela.length-1));
+            $('#modalMapa').modal('hide');
+
+            //var attributes = {
+              //name: "Haz click en aceptar para guardar el poligono",
+              //type: "<button id='"+parcela+"' onclick='seleccionar(this)'>Aceptar</button>" 
+            //}
+            //event.graphic.attributes = attributes;
+
+            //var popupTemplate = {
+              //title: "{name}",
+              //content: "{type}."
+            //}
+            //event.graphic.popupTemplate = popupTemplate;
+          }
+          });    
+      });
+    }
+    
+            
+  </script>
+  <script>
+    function seleccionar(elem){
+      alert(elem.id);
+    }
+  </script>
+</head>
+<body>
+    <div class="container">
+      <br>
+        <div class="row">
+          <div class="col-md-8">
+            <div class="form-group">
+              <label class="control-label">Poligono</label><button class="btn btn-sm btn-success" onclick="abrir()">+</button>
+              <textarea id="txtPoligono" class="form-control" style="width: 70%; height: 150px;"></textarea>
+            </div>
+          </div>
+        </div>
+    </div>          
+    <script>
+      function abrir(){        
+        $('#modalMapa').modal('show');
+        Iniciar();
+      }
+    </script>
+
+    <div id="modalMapa" class="modal fade bd-example-modal-lg" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-body">
+                <div id="viewDiv" style="margin: 0; padding: 0; width: 100%; height: 500px;"></div>
+            </div>              
+          </div>
+        </div>
+      </div>  
+</body>
+</html>
