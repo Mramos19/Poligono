@@ -1,0 +1,40 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>EXTENSION</title>
+    <meta charset="utf-8" />
+    <!--Carga el css de esri y el CDN JavaScript más reciente-->
+    <link rel="stylesheet" href="https://js.arcgis.com/3.21/esri/css/esri.css">
+    <script src="https://js.arcgis.com/3.21/"></script>
+    <script>
+        var map;
+        require([
+            "esri/map",
+            "esri/geometry/Extent"
+        ],
+            function (
+                Map,
+                Extent,
+            ) {
+                map = new Map("myMap", {
+                    basemap: "streets",
+                });
+                var extent = new Extent({
+                    "type": "extent",
+                    "xmin": -8791557.682273773,
+                    "ymin": -55522.87436132855,
+                    "xmax": -8689667.12356977,
+                    "ymax": -9660.6573902846,
+                    "spatialReference": {
+                        "wkid": 102100,
+                        "latestWkid": 3857,
+                    }
+                });
+                map.setExtent(extent);
+            });
+    </script>
+</head>
+<body>
+    <div id="myMap" style="width:100%; height:600px" />
+</body>
+</html>

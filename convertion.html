@@ -1,0 +1,21 @@
+const cs1 = new SpatialReference({
+  wkid: 4272 //PE_GCS_ED_1950
+});
+
+const cs2 = new SpatialReference({
+  wkid: 4167
+});
+
+const extent = new Extent({
+  xmin: -186.0,
+  ymin: -42.0,
+  xmax: -179.0,
+  ymax: -38.0
+});
+
+const geogtrans = projection.getTransformations(cs1, cs2, extent);
+geogtrans.forEach(function(geogtran, index) {
+  geogtran.steps.forEach(function(step, index) {
+    console.log("step wkid: ", step.wkid);
+  });
+});

@@ -1,0 +1,153 @@
+﻿<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>ArcGIS JavaScript Tutorials: Draw graphics</title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/4.11/esri/css/main.css">
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+    <script src="https://js.arcgis.com/4.11/"></script>
+    <script type="text/javascript">
+
+        //Funciones que contendra el manejo de las coordenadas
+        var ListaCoordenadas = []; //lista que contendra todas las coordenadas
+
+        var Coordenadas = new Object(); //Objeto donde se guardaran las coordenadas
+        Coordenadas.Latitud = 0;
+        Coordenadas.Longitud = 0;
+
+        //Funcion que verifica que exista una coordenada
+        function BuscarCoordenadas(latitud, longitud) {
+
+            var resultado = false;
+
+            for (var i = 0; i < ListaCoordenadas.length; i++) {
+
+                if (ListaCoordenadas[i].Latitud == latitud && ListaCoordenadas[i].Longitud == longitud) {
+                    resultado = true;
+                    break;
+                }
+            }
+
+            return resultado;
+        }
+
+    </script>
+    <script>
+
+        function Iniciar() {
+            require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic"], function (Map, MapView, GraphicsLayer, Graphic) {
+
+                // Creat a temporary layer for graphics
+                var graphicsLayer = new GraphicsLayer();
+
+                //Propiedades del tipo de mapa
+                var map = new Map({
+                    basemap: "streets-navigation-vector",
+                    layers: [graphicsLayer]
+                });
+
+
+                //View que contendra el tipo de mapa y el contenedor donde se mostrara
+                var view = new MapView({
+                    container: "viewDiv",
+                    map: map,
+                    center: [-86.247, 11.758], //Longitud y latitud
+                    zoom: 9
+                });
+
+
+                //Agregando el evento click al view
+                view.on("click", function (event) {
+                    // you must overwrite default click-for-popup
+                    // behavior to display your own popup
+                    //view.popup.autoOpenEnabled = true;
+
+                    //se obtiene la latitud y longitud
+                    var lat = Math.round(event.mapPoint.latitude * 1000) / 1000;
+                    var lon = Math.round(event.mapPoint.longitude * 1000) / 1000;
+
+                    var 
+
+                    //Validando que no se guarde el mismo punto
+                    //if (!BuscarCoordenadas(lat, lon)) {
+
+                        //Se crea el nuevo objeto con las nuevas coordenadas
+                        Coordenadas = new Object();
+                        Coordenadas.Latitud = lat;
+                        Coordenadas.Longitud = lon;
+
+                        //Agregando las coordenadas a la lista
+                        ListaCoordenadas.push(Coordenadas);
+
+
+                        //Imprimiendo en el punto en el mapa
+                        //Dibujando punto
+                        var point = {
+                            type: "point",
+                            longitude: lon,
+                            latitude: lat
+                        };
+
+                        //Agregando marcador
+                        var simpleMarkerSymbol = {
+                            type: "simple-marker",
+                            color: [226, 119, 40],  // orange
+                            outline: {
+                                color: [255, 255, 255], // white
+                                width: 1
+                            }
+                        };
+
+                        //Creando el grafico
+                        var pointGraphic = new Graphic({
+                            geometry: point,
+                            symbol: simpleMarkerSymbol,
+                        });
+
+                        //Agregando el grafico al view
+                        view.graphics.add(pointGraphic);
+
+                        console.log(ListaCoordenadas);
+
+                    //}
+
+                });
+            });
+        }
+
+/**/</script>
+</head>
+<body>
+    <div class="container">
+        <br>
+        <div class="row">
+            <div class="col-md-8">
+                <div class="form-group">
+                    <label class="control-label">Poligono</label><button class="btn btn-sm btn-success" onclick="abrir()">+</button>
+                    <textarea id="txtPoligono" class="form-control" style="width: 70%; height: 150px;"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function abrir() {
+            $('#modalMapa').modal('show');
+            Iniciar();
+        }
+    </script>
+
+    <div id="modalMapa" class="modal fade bd-example-modal-lg" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <div id="viewDiv" style="margin: 0; padding: 0; width: 100%; height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
