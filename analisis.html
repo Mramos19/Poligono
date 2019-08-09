@@ -1,4 +1,3 @@
-
 <html>
         <head>
           <meta charset="utf-8" />
@@ -36,27 +35,37 @@
               "esri/layers/GraphicsLayer",
               "esri/views/MapView",
               "esri/geometry/SpatialReference",
+              "esri/WebMap",
               "esri/Basemap"
-            ], function(Sketch, Map, GraphicsLayer, MapView, SpatialReference, Basemap) {
+            ], function(Sketch, Map, GraphicsLayer, MapView, SpatialReference, WebMap, Basemap) {
               const layer = new GraphicsLayer();
                 
-              var basemap = new Basemap({
+              var webMap = new WebMap({
                     portalItem: {
-                        id: "8dda0e7b5e2d4fafa80132d59122268c"  // WGS84 Streets Vector webmap
+                        id: "5e39f9fbafca4762855cc213cf5e8cbc"  // WGS84 Streets Vector webmap
+                    },
+                    spatialReference: {
+                                        wkid: 4326
+                                      }
+                });
+
+                var basemap = new Basemap({
+                    portalItem: {
+                        id: "5e39f9fbafca4762855cc213cf5e8cbc"  // WGS84 Streets Vector webmap
                     }
                 });
 
               const map = new Map({
-                basemap: basemap,
+                map: webMap,
                 layers: [layer]
               });
       
               const view = new MapView({
                 container: "viewDiv",
-                map: map,
+                map: webMap,
                 zoom: 13,
-                center: [-86.21980537267598, 11.856161479427497],
-                spatialReference: { wkid: 4326 }
+                center: [-86.21980537267598, 11.856161479427497]//,
+                //spatialReference: { wkid: 4326 }               
               });
 
               const sketch = new Sketch({
