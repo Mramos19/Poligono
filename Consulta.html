@@ -89,7 +89,7 @@
         // Load webscene and display it in a SceneView
         const webscene = new WebScene({
           portalItem: {
-            id: "1b18b52847064f08a9db0389f22dae6f"
+            id: "fb5948b2bb76439792786000b942e5b7"
           }
         });
         // create the SceneView
@@ -107,13 +107,10 @@
         let sceneLayerView = null;
         let bufferSize = 0;
 
-        console.log(webscene.layer);
-        console.log(webscene.layers);
-
         // Assign scene layer once webscene is loaded and initialize UI
         webscene.load().then(function() {
           sceneLayer = webscene.layers.find(function(layer) {
-            return layer.title === null;
+            return layer.title === "Helsinki textured buildings";
           });
           sceneLayer.outFields = ["buildingMaterial", "yearCompleted"];
 
@@ -286,12 +283,71 @@
           const statDefinitions = [
             {
               onStatisticField:
-                "CASE WHEN enriquecida = 'Area sin cobertura forestal' THEN 1 ELSE 0 END",
-              outStatisticFieldName: "RECLASI",
+                "CASE WHEN buildingMaterial = 'concrete or lightweight concrete' THEN 1 ELSE 0 END",
+              outStatisticFieldName: "material_concrete",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN buildingMaterial = 'brick' THEN 1 ELSE 0 END",
+              outStatisticFieldName: "material_brick",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN buildingMaterial = 'wood' THEN 1 ELSE 0 END",
+              outStatisticFieldName: "material_wood",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN buildingMaterial = 'steel' THEN 1 ELSE 0 END",
+              outStatisticFieldName: "material_steel",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN buildingMaterial IN ('concrete or lightweight concrete', 'brick', 'wood', 'steel') THEN 0 ELSE 1 END",
+              outStatisticFieldName: "material_other",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '1850' AND yearCompleted <= '1899') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_1850",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '1900' AND yearCompleted <= '1924') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_1900",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '1925' AND yearCompleted <= '1949') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_1925",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '1950' AND yearCompleted <= '1974') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_1950",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '1975' AND yearCompleted <= '1999') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_1975",
+              statisticType: "sum"
+            },
+            {
+              onStatisticField:
+                "CASE WHEN (yearCompleted >= '2000' AND yearCompleted <= '2015') THEN 1 ELSE 0 END",
+              outStatisticFieldName: "year_2000",
               statisticType: "sum"
             }
           ];
-          debugger;
           const query = sceneLayerView.createQuery();
           query.geometry = sketchGeometry;
           query.distance = bufferSize;
