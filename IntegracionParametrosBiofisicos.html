@@ -1,0 +1,700 @@
+﻿<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+          content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>SceneLayerView - query statistics by geometry - 4.12</title>
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        .esri-ui-top-right {
+            max-height: 100%;
+        }
+
+        #queryDiv,
+        #resultDiv {
+            min-width: 250px;
+            font-size: 14px;
+            padding: 10px;
+            display: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .geometry-options {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .geometry-button {
+            flex: 1;
+            border-style: solid;
+            border-width: 1px;
+            border-image: none;
+        }
+
+        .geometry-button-selected {
+            background: #4c4c4c;
+            color: #fff;
+        }
+
+        #bufferNum {
+            width: 90%;
+            margin: 2.5em auto 0;
+        }
+
+        .count {
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+        }
+    </style>
+    <!-- Load the Chart.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.12/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.12/"></script>
+    <script>
+        function Etiqueta(Div) {   
+            this._Div = document.getElementById(Div);   
+        }
+    
+        Etiqueta.prototype.Dibujar = function(Titulo, Color) {
+            //debugger;
+            const _Br = document.createElement("br");
+    
+            const _DivTemporal = document.createElement("div");   
+            _DivTemporal.style = "width: 40px; height: 18px; background-color:" + Color +";display: inline-block;";
+    
+            const _Titulo = document.createElement("label");
+            _Titulo.innerHTML = Titulo;
+            _Titulo.style ="margin-left: 4px;font-size: 1.1em;";  
+    
+            this._Div.appendChild(_Br); 
+            this._Div.appendChild(_DivTemporal);   
+            this._Div.appendChild(_Titulo);    
+        };
+    </script>
+    <script>
+        require([
+            "esri/WebScene",
+            "esri/views/SceneView",
+            "esri/layers/GraphicsLayer",
+            "esri/widgets/Sketch/SketchViewModel",
+            "esri/widgets/Slider",
+            "esri/geometry/geometryEngine",
+            "esri/Graphic",
+            "esri/core/promiseUtils"
+        ], function (
+            WebScene,
+            SceneView,
+            GraphicsLayer,
+            SketchViewModel,
+            Slider,
+            geometryEngine,
+            Graphic,
+            promiseUtils
+        ) {
+                // Estableciendo la escena para luego cargarla en el la vista escena
+                const webscene = new WebScene({
+                    portalItem: {
+                        id: "bab78a25857a4d889e636fb2d094f3a2"
+                    }
+                });
+
+                // Creando la vista de la escena con el web escena
+                const view = new SceneView({
+                    container: "viewDiv",
+                    map: webscene
+                });
+
+                window.view = view;
+
+                // agregar un GraphicsLayer para los bocetos y el búfer
+                const sketchLayer = new GraphicsLayer();
+                const bufferLayer = new GraphicsLayer();
+                view.map.addMany([bufferLayer, sketchLayer]);
+
+                let sceneLayer = null;
+                let sceneLayerView = null;
+                let bufferSize = 0;
+
+                // Asigne la capa de escena una vez que se carga webscene e inicialice la interfaz de usuario
+                webscene.load().then(function () {
+                    //debugger;
+                    sceneLayer = webscene.layers.find(function (layer) {
+                        //console.log(layer);
+                        return layer.title === "Parametros_Biofisicos";
+                    });
+
+                    sceneLayer.outFields = ["IdPBF"];
+
+                    view.whenLayerView(sceneLayer).then(function (layerView) {
+                        sceneLayerView = layerView;
+                        queryDiv.style.display = "block";
+                    });
+                });
+
+                view.watch("updating", function (updating) {
+                    if (!updating) {
+                        runQuery();
+                    }
+                });
+
+                view.ui.add([queryDiv], "bottom-left");
+                view.ui.add([resultDiv], "top-right");
+
+                // use SketchViewModel para dibujar polígonos que se usan como consulta
+                let sketchGeometry = null;
+                const sketchViewModel = new SketchViewModel({
+                    layer: sketchLayer,
+                    defaultUpdateOptions: {
+                        tool: "reshape",
+                        toggleToolOnClick: false
+                    },
+                    view: view
+                });
+
+                sketchViewModel.on("create", function (event) {
+                    if (event.state === "complete") {
+                        sketchGeometry = event.graphic.geometry;
+                        runQuery();                        
+                    }
+                });
+
+                sketchViewModel.on("update", function (event) {
+                    if (event.state !== "cancel" && event.graphics.length) {
+                        sketchGeometry = event.graphics[0].geometry;
+                        runQuery();
+                    }
+                });
+
+                // dibujar botones de geometría: use la geometría seleccionada para sktech
+                document
+                    .getElementById("point-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
+
+                document
+                    .getElementById("line-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
+
+                document
+                    .getElementById("polygon-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
+
+
+                function geometryButtonsClickHandler(event) {
+                    const geometryType = event.target.value;
+                    clearGeometry();
+                    sketchViewModel.create(geometryType);
+                }
+
+                const bufferNumSlider = new Slider({
+                    container: "bufferNum",
+                    min: 0,
+                    max: 500,
+                    steps: 1,
+                    labelsVisible: true,
+                    precision: 0,
+                    labelFormatFunction: function (value, type) {
+                        return value.toString() + "m";
+                    },
+                    values: [0]
+                });
+                // obtener valores ingresados ​​por el usuario para el búfer
+                bufferNumSlider.on("value-change", bufferVariablesChanged);
+                function bufferVariablesChanged(event) {
+                    bufferSize = event.value;
+                    runQuery();
+                }
+                // Borre la geometría y configure el renderizador predeterminado
+                document
+                    .getElementById("clearGeometry")
+                    .addEventListener("click", clearGeometry);
+
+                // Borre la geometría y configure el renderizador predeterminado
+                function clearGeometry() {
+                    sketchGeometry = null;
+                    sketchViewModel.cancel();
+                    sketchLayer.removeAll();
+                    bufferLayer.removeAll();
+                    clearHighlighting();
+
+                    document.getElementById("btnTodo").style.display="none";
+
+                    LimpiarAnalisis();
+                    //Oculta el resultado de la seleccion                    
+                    resultDiv.style.display = "none";
+                }
+
+                // establecer la consulta de geometría en el SceneLayerView visible
+                var debouncedRunQuery = promiseUtils.debounce(function () {
+                    if (!sketchGeometry) {
+                        return;
+                    }
+
+                    resultDiv.style.display = "block";
+                    updateBufferGraphic(bufferSize);
+                    return promiseUtils.eachAlways([
+                        queryStatistics(),
+                        updateSceneLayer()
+                    ]);
+                });
+
+                function runQuery() {
+                    debouncedRunQuery().catch((error) => {
+                        if (error.name === "AbortError") {
+                            return;
+                        }
+
+                        console.error(error);
+                    });
+                }
+
+                // Establecer el renderizador con objectIds
+                var highlightHandle = null;
+                function clearHighlighting() {
+                    if (highlightHandle) {
+                        highlightHandle.remove();
+                        highlightHandle = null;
+                    }
+                }
+
+                function highlightBuildings(objectIds) {
+                    // Remove any previous highlighting
+                   // debugger;
+                    clearHighlighting();
+                    const objectIdField = sceneLayer.objectIdField;
+
+                    //si se encuentran resultados se habilita el boton de consultar todo
+                    if(objectIds.length==0){
+                        document.getElementById("count").innerHTML = "(Sin resultados)";
+                        document.getElementById("btnTodo").style.display="none"; 
+                    }else{
+                        document.getElementById("count").innerHTML = "";
+                        document.getElementById("btnTodo").style.display="block"; 
+                    }        
+
+                    //console.log(objectIds);
+
+                    highlightHandle = sceneLayerView.highlight(objectIds);
+                }
+
+                // actualizar el gráfico con buffer
+                function updateBufferGraphic(buffer) {
+                    // agregar un gráfico de polígono para el búfer
+                    if (buffer > 0) {
+                        var bufferGeometry = geometryEngine.geodesicBuffer(
+                            sketchGeometry,
+                            buffer,
+                            "meters"
+                        );
+                        if (bufferLayer.graphics.length === 0) {
+                            bufferLayer.add(
+                                new Graphic({
+                                    geometry: bufferGeometry,
+                                    symbol: sketchViewModel.polygonSymbol
+                                })
+                            );
+                        } else {
+                            bufferLayer.graphics.getItemAt(0).geometry = bufferGeometry;
+                        }
+                    } else {
+                        bufferLayer.removeAll();
+                    }
+                }
+
+                function updateSceneLayer() {
+                    const query = sceneLayerView.createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    return sceneLayerView.queryObjectIds(query).then(highlightBuildings);
+                }
+
+                function queryStatistics() {
+                    const statDefinitions = [
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 1 THEN 1 ELSE 0 END", //Elevacion
+                            outStatisticFieldName: "Elevacion_0_399",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 2 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Elevacion_400_799",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 4 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Elevacion_799_1199",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 24 THEN 1 ELSE 0 END", //Temperatura
+                            outStatisticFieldName: "Temperatura_20_27",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 25 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Temperatura_27_40",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 9 THEN 1 ELSE 0 END", //Suelos
+                            outStatisticFieldName: "Suelo_Arcilloso",    
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 6 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Franco_Arcilloso",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 5 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Franco_Arenoso",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 36 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Franco_Arenoso_Limoso",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 21 THEN 1 ELSE 0 END", //Precipitacion
+                            outStatisticFieldName: "Precipitacion_1200_1600",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 22 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Precipitacion_1600_2000",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField: "CASE WHEN IdPBF = 20 THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Precipitacion_800_1200",
+                            statisticType: "sum"
+                        }
+                    ];
+
+                    const query = sceneLayerView.createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    query.outStatistics = statDefinitions;
+
+                    return sceneLayerView.queryFeatures(query).then(function (result) {
+                        const allStats = result.features[0].attributes;   
+                        ImprimirAnalisis(allStats);                                                                   
+                    }, console.error);
+
+                }
+
+                //Definiendo las etiquetas para su posterior impresion
+                var temperatura = new Etiqueta("Temperatura");
+                var suelo = new Etiqueta("Suelo");
+                var precipitacion = new Etiqueta("Precipitacion");
+                var elevacion = new Etiqueta("Elevacion");
+
+                //String que contendrá los parametros de selección
+                var ConsutaTodo = "",
+                    ConsultaTemperatura="",
+                    ConsultaPrecipitacion="",
+                    ConsultaElevacion="";
+        
+                //Funcion que imprime las etiquetas segun el resultado del analisis
+                function ImprimirAnalisis(resultado){
+
+                    //Limpiando resultados de la etiqueta
+                    LimpiarAnalisis();
+
+                    /*
+                       **** Impresion de etiquetas ****
+                    */
+                    
+                    //Elevacion
+                    if(resultado.Elevacion_0_399 > 0){
+                        elevacion.Dibujar("Elevación 0 - 399 m.s.n.m.", "#943126");     
+                        ConsutaTodo+="1,";  
+                        ConsultaElevacion+="1,";        
+                    }
+
+                    if(resultado.Elevacion_400_799 > 0){
+                        elevacion.Dibujar("Elevación 400 - 799 m.s.n.m.", "#76448A");
+                        ConsutaTodo+="2,";  
+                        ConsultaElevacion+="2,";   
+                    }
+
+                    if(resultado.Elevacion_799_1199 > 0){
+                        elevacion.Dibujar("Elevación 800 - 1199 m.s.n.m.", "#1A5276");  
+                        ConsutaTodo+="4,";   
+                        ConsultaElevacion+="4,";                       
+                    }
+
+                    //Temperatura
+                    if(resultado.Temperatura_20_27 > 0){
+                        temperatura.Dibujar("20º C - 22º C", "#F1C40F"); 
+                        temperatura.Dibujar("22.1º C - 23.9º C", "#F39C12"); 
+                        temperatura.Dibujar("24º C - 27º C", "#CA6F1E");
+                        ConsutaTodo+="24,";  
+                        ConsultaTemperatura+="24,"; 
+                    }
+
+                    if(resultado.Temperatura_27_40 > 0){
+                        temperatura.Dibujar("> 27º C", "#BA4A00");
+                        ConsutaTodo+="25,";  
+                        ConsultaTemperatura+="25,"; 
+                    }
+
+                    //Tipos de Suelos
+                    if(resultado.Suelo_Arcilloso > 0){
+                        suelo.Dibujar("Arcilloso", "#7B7D7D");   
+                        ConsutaTodo+="9,";   
+                        ConsultaSuelo+="9,"                  
+                    }
+
+                    if(resultado.Franco_Arcilloso > 0){
+                        suelo.Dibujar("Franco Arcilloso", "#626567");
+                        ConsutaTodo+="6,";  
+                        ConsultaSuelo+="6,"
+                    }
+
+                    if(resultado.Franco_Arenoso > 0){
+                        suelo.Dibujar("Franco Arenoso", "#4D5656");
+                        ConsutaTodo+="5,";  
+                        ConsultaSuelo+="5,"
+                    }
+
+                    if(resultado.Franco_Arenoso_Limoso > 0){
+                        suelo.Dibujar("Franco Arenoso Limoso", "#424949"); 
+                        ConsutaTodo+="36,";  
+                        ConsultaSuelo+="36,"
+                    }
+
+                    //Precipitacion
+                    if(resultado.Precipitacion_800_1200 > 0){
+                        precipitacion.Dibujar("800 mm - 1200 mm", "#5499C7"); 
+                        ConsutaTodo+="20,"; 
+                        ConsultaPrecipitacion+="20,"
+                    }
+
+                    if(resultado.Precipitacion_1200_1600 > 0){
+                        precipitacion.Dibujar("1200 mm - 1600 mm", "#2874A6"); 
+                        ConsutaTodo+="21,"; 
+                        ConsultaPrecipitacion+="21,"
+                    }
+
+                    if(resultado.Precipitacion_1600_2000 > 0){
+                        precipitacion.Dibujar("1600 mm - 2000 mm", "#154360"); 
+                        ConsutaTodo+="22,"; 
+                        ConsultaPrecipitacion+="22,"
+                    }    
+
+
+                    /*
+                       **** Habilitando titulos y botones ****                   
+                    */
+
+                    //Elevacion
+                    if((resultado.Elevacion_0_399 > 0) || (resultado.Elevacion_400_799 > 0) || (resultado.Elevacion_799_1199 > 0)){
+                        
+                        //Habilitando titulo
+                        document.getElementById("TituloElevacion").style.display="block";  
+                        //Habilitando boton
+                        document.getElementById("btnElevacion").style.display="block";
+
+                    }
+
+                    //Temperatura
+                    if((resultado.Temperatura_20_27 > 0) || (resultado.Temperatura_27_40 > 0)){
+                                                
+                        //Habilitando titulo
+                        document.getElementById("TituloTemperatura").style.display="block";  
+                        //Habilitando boton
+                        document.getElementById("btnTemperatura").style.display="block";
+
+                    }
+
+                    //Tipos de Suelos
+                    if((resultado.Suelo_Arcilloso > 0) || (resultado.Franco_Arcilloso > 0) || (resultado.Franco_Arenoso > 0) || (resultado.Franco_Arenoso_Limoso > 0)){
+
+                        //Habilitando titulo
+                        document.getElementById("TituloSuelo").style.display="block";
+                        //Habilitando Boton
+                        document.getElementById("btnSuelo").style.display="block";                        
+                    }
+
+                    //Precipitacion
+                    if((resultado.Precipitacion_800_1200 > 0) || (resultado.Precipitacion_1200_1600 > 0) || (resultado.Precipitacion_1600_2000 > 0)){
+
+                        //Habilitando titulo
+                        document.getElementById("TituloPrecipitacion").style.display="block";
+                        //Habilitando boton
+                        document.getElementById("btnPrecipitacion").style.display="block";
+
+                    } 
+
+                }
+
+                //Funcion que limpia el div de los resultados
+                function LimpiarAnalisis(){
+                    
+                   //Reiniciando variables
+                   ConsutaTodo = "";
+                   ConsultaTemperatura="";
+                   ConsultaPrecipitacion="";
+                   ConsultaElevacion="",
+                   ConsultaSuelo="";
+
+                   //Ocultando Titulos
+                   document.getElementById("TituloTemperatura").style.display="none";  
+                   document.getElementById("TituloSuelo").style.display="none";
+                   document.getElementById("TituloPrecipitacion").style.display="none";
+                   document.getElementById("TituloElevacion").style.display="none";   
+
+                   //Limpiando Leyendas 
+                   document.getElementById("Temperatura").innerHTML="";  
+                   document.getElementById("Suelo").innerHTML=""; 
+                   document.getElementById("Precipitacion").innerHTML=""; 
+                   document.getElementById("Elevacion").innerHTML="";     
+
+                   //Ocultando Botones
+                   document.getElementById("btnTemperatura").style.display="none";
+                   document.getElementById("btnSuelo").style.display="none";
+                   document.getElementById("btnPrecipitacion").style.display="none";
+                   document.getElementById("btnElevacion").style.display="none";           
+                }    
+
+                /*
+                    **** Evento de los botones ****
+                */
+
+                //Consultar Todo
+                document
+                    .getElementById("btnTodo")
+                    .addEventListener("click", function(event){
+                        alert(ConsutaTodo.substring(0,ConsutaTodo.length-1));
+                    });                     
+
+                //Consulta Temperatura
+                document
+                    .getElementById("btnTemperatura")
+                    .addEventListener("click", function(event){
+                        alert(ConsultaTemperatura.substring(0, ConsultaTemperatura.length-1));
+                    });
+
+                //Consulta Suelo
+                document
+                    .getElementById("btnSuelo")
+                    .addEventListener("click", function(event){
+                        alert(ConsultaSuelo.substring(0,ConsultaSuelo.length-1));
+                    });
+
+                //Consulta precipitacion
+                document
+                    .getElementById("btnPrecipitacion")
+                    .addEventListener("click", function(event){
+                        alert(ConsultaPrecipitacion.substring(0,ConsultaPrecipitacion.length-1));
+                    });
+
+                //Consulta 
+                document
+                    .getElementById("btnElevacion")
+                    .addEventListener("click", function(event){
+                        alert(ConsultaElevacion.substring(0, ConsultaElevacion.length-1));
+                    });
+
+            });
+    </script>
+</head>
+
+<body>
+    <div id="viewDiv"></div>
+    <div id="queryDiv" class="esri-widget">
+        <b>Consulta por geometría</b><br />
+        <br />Dibuje una geometría para consultar por:
+        <div class="geometry-options">
+            <button class="esri-widget--button esri-icon-map-pin geometry-button"
+                    id="point-geometry-button"
+                    value="point"
+                    title="Consultar por punto" type="button"></button>
+            <button class="esri-widget--button esri-icon-polyline geometry-button"
+                    id="line-geometry-button"
+                    value="polyline"
+                    title="Consultar por linea" type="button"></button>
+            <button class="esri-widget--button esri-icon-polygon geometry-button"
+                    id="polygon-geometry-button"
+                    value="polygon"
+                    title="Consultar por poligono" type="button"></button>
+        </div>
+        <br />
+        <div class="tooltip">
+            <label for="bufferNum">Establecer tamaño del buffer:</label>
+            <div id="bufferNum"></div>
+        </div>
+        <br />
+        <button class="esri-button" id="clearGeometry" type="button">
+            Borrar
+        </button>
+        <br>
+        <button class="esri-button" id="btnTodo" type="button" style="display: none;" onclick="ConsultarTodo">
+            Analisar Todo
+        </button>
+    </div>
+
+    <div id="resultDiv" class="esri-widget">
+        <!--Resultado-->    
+        <div class="count">
+            Resultados de la seleccion:            
+            <div class="count" id="count"></div>
+        </div>
+        <br>       
+
+
+        <!--Temperatura-->    
+        <div class="count" id="TituloTemperatura">Temperatura:</div>
+        <div id="Temperatura">                        
+        </div>
+        <br>
+        <button class="esri-button" id="btnTemperatura" type="button">
+            Analisar Temperatura
+        </button> 
+        <br>
+
+        <!--Suelo-->  
+        <div class="count" id="TituloSuelo">Tipo de Suelo:</div>
+        <div id="Suelo">           
+        </div>
+        <br>
+        <button class="esri-button" id="btnSuelo" type="button">
+            Analisar Suelo
+        </button> 
+        <br>
+
+        <!--Precipitacion-->  
+        <div class="count" id="TituloPrecipitacion">Precipitación:</div>
+        <div id="Precipitacion">                        
+        </div>
+        <br>
+        <button class="esri-button" id="btnPrecipitacion" type="button">
+            Analisar Precipitación
+        </button> 
+        <br>
+
+        <!--Suelo-->  
+        <div class="count" id="TituloElevacion">Elevacion:</div>
+        <div id="Elevacion">            
+        </div>             
+        <br>       
+        <button class="esri-button" id="btnElevacion" type="button">
+            Analisar Elevación
+        </button> 
+        <br>
+    </div>
+</body>
+</html>
