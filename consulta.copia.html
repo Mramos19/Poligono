@@ -1,417 +1,409 @@
-<html>
-  <head>
+﻿<html>
+<head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="initial-scale=1,maximum-scale=1,user-scalable=no"
-    />
+    <meta name="viewport"
+          content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <title>SceneLayerView - query statistics by geometry - 4.12</title>
     <style>
-      html,
-      body,
-      #viewDiv {
-        padding: 0;
-        margin: 0;
-        height: 100%;
-        width: 100%;
-      }
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
 
-      .esri-ui-top-right {
-        max-height: 100%;
-      }
+        .esri-ui-top-right {
+            max-height: 100%;
+        }
 
-      #queryDiv,
-      #resultDiv {
-        min-width: 250px;
-        font-size: 14px;
-        padding: 10px;
-        display: none;
-        overflow-y: auto;
-        overflow-x: hidden;
-      }
+        #queryDiv,
+        #resultDiv {
+            min-width: 250px;
+            font-size: 14px;
+            padding: 10px;
+            display: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
 
-      .geometry-options {
-        display: flex;
-        flex-direction: row;
-      }
-      .geometry-button {
-        flex: 1;
-        border-style: solid;
-        border-width: 1px;
-        border-image: none;
-      }
-      .geometry-button-selected {
-        background: #4c4c4c;
-        color: #fff;
-      }
+        .geometry-options {
+            display: flex;
+            flex-direction: row;
+        }
 
-      #bufferNum {
-        width: 90%;
-        margin: 2.5em auto 0;
-      }
+        .geometry-button {
+            flex: 1;
+            border-style: solid;
+            border-width: 1px;
+            border-image: none;
+        }
 
-      .count {
-        white-space: nowrap;
-        font-size: 14px;
-        font-weight: bold;
-        display: inline-block;
-      }
+        .geometry-button-selected {
+            background: #4c4c4c;
+            color: #fff;
+        }
+
+        #bufferNum {
+            width: 90%;
+            margin: 2.5em auto 0;
+        }
+
+        .count {
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: bold;
+            display: inline-block;
+        }
     </style>
     <!-- Load the Chart.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
 
-    <link
-      rel="stylesheet"
-      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
-    />
+    <link rel="stylesheet"
+          href="https://js.arcgis.com/4.12/esri/themes/light/main.css" />
     <script src="https://js.arcgis.com/4.12/"></script>
 
     <script>
-      require([
-        "esri/WebScene",
-        "esri/views/SceneView",
-        "esri/layers/GraphicsLayer",
-        "esri/widgets/Sketch/SketchViewModel",
-        "esri/widgets/Slider",
-        "esri/geometry/geometryEngine",
-        "esri/Graphic",
-        "esri/core/promiseUtils"
-      ], function(
-        WebScene,
-        SceneView,
-        GraphicsLayer,
-        SketchViewModel,
-        Slider,
-        geometryEngine,
-        Graphic,
-        promiseUtils
-      ) {
-        // Estableciendo la escena para luego cargarla en el la vista escena
-        const webscene = new WebScene({
-          portalItem: {
-            id: "1b18b52847064f08a9db0389f22dae6f"
-          }
-        });
+        require([
+            "esri/WebScene",
+            "esri/views/SceneView",
+            "esri/layers/GraphicsLayer",
+            "esri/widgets/Sketch/SketchViewModel",
+            "esri/widgets/Slider",
+            "esri/geometry/geometryEngine",
+            "esri/Graphic",
+            "esri/core/promiseUtils"
+        ], function (
+            WebScene,
+            SceneView,
+            GraphicsLayer,
+            SketchViewModel,
+            Slider,
+            geometryEngine,
+            Graphic,
+            promiseUtils
+        ) {
+                // Estableciendo la escena para luego cargarla en el la vista escena
+                const webscene = new WebScene({
+                    portalItem: {
+                        id: "1b18b52847064f08a9db0389f22dae6f"
+                    }
+                });
 
-        // Creando la vista de la escena con el web escena
-        const view = new SceneView({
-          container: "viewDiv",
-          map: webscene
-        });
+                // Creando la vista de la escena con el web escena
+                const view = new SceneView({
+                    container: "viewDiv",
+                    map: webscene
+                });
 
-        window.view = view;
+                window.view = view;
 
-        // agregar un GraphicsLayer para los bocetos y el búfer
-        const sketchLayer = new GraphicsLayer();
-        const bufferLayer = new GraphicsLayer();
-        view.map.addMany([bufferLayer, sketchLayer]);
+                // agregar un GraphicsLayer para los bocetos y el búfer
+                const sketchLayer = new GraphicsLayer();
+                const bufferLayer = new GraphicsLayer();
+                view.map.addMany([bufferLayer, sketchLayer]);
 
-        let sceneLayer = null;
-        let sceneLayerView = null;
-        let bufferSize = 0;
+                let sceneLayer = null;
+                let sceneLayerView = null;
+                let bufferSize = 0;
 
-        // Asigne la capa de escena una vez que se carga webscene e inicialice la interfaz de usuario
-        webscene.load().then(function() {
-          debugger;
-          sceneLayer = webscene.layers.find(function(layer) {            
-            //console.log(layer);
-            return layer.title === "enriquecida";
-          });
+                // Asigne la capa de escena una vez que se carga webscene e inicialice la interfaz de usuario
+                webscene.load().then(function () {
+                    debugger;
+                    sceneLayer = webscene.layers.find(function (layer) {
+                        //console.log(layer);
+                        return layer.title === "enriquecida";
+                    });
 
-          sceneLayer.outFields = ["RECLASI"];
+                    sceneLayer.outFields = ["RECLASI"];
 
-          view.whenLayerView(sceneLayer).then(function(layerView) {
-            sceneLayerView = layerView;
-            queryDiv.style.display = "block";
-          });
-        });
+                    view.whenLayerView(sceneLayer).then(function (layerView) {
+                        sceneLayerView = layerView;
+                        queryDiv.style.display = "block";
+                    });
+                });
 
-        view.watch("updating", function(updating) {
-          if (!updating) {
-            runQuery();
-          }
-        });
+                view.watch("updating", function (updating) {
+                    if (!updating) {
+                        runQuery();
+                    }
+                });
 
-        view.ui.add([queryDiv], "bottom-left");
-        view.ui.add([resultDiv], "top-right");
+                view.ui.add([queryDiv], "bottom-left");
+                view.ui.add([resultDiv], "top-right");
 
-        // use SketchViewModel para dibujar polígonos que se usan como consulta
-        let sketchGeometry = null;
-        const sketchViewModel = new SketchViewModel({
-          layer: sketchLayer,
-          defaultUpdateOptions: {
-            tool: "reshape",
-            toggleToolOnClick: false
-          },
-          view: view
-        });
+                // use SketchViewModel para dibujar polígonos que se usan como consulta
+                let sketchGeometry = null;
+                const sketchViewModel = new SketchViewModel({
+                    layer: sketchLayer,
+                    defaultUpdateOptions: {
+                        tool: "reshape",
+                        toggleToolOnClick: false
+                    },
+                    view: view
+                });
 
-        sketchViewModel.on("create", function(event) {
-          if (event.state === "complete") {
-            sketchGeometry = event.graphic.geometry;
-            runQuery();
-          }
-        });
+                sketchViewModel.on("create", function (event) {
+                    if (event.state === "complete") {
+                        sketchGeometry = event.graphic.geometry;
+                        runQuery();
+                    }
+                });
 
-        sketchViewModel.on("update", function(event) {
-          if (event.state !== "cancel" && event.graphics.length) {
-            sketchGeometry = event.graphics[0].geometry;
-            runQuery();
-          }
-        });
+                sketchViewModel.on("update", function (event) {
+                    if (event.state !== "cancel" && event.graphics.length) {
+                        sketchGeometry = event.graphics[0].geometry;
+                        runQuery();
+                    }
+                });
 
-        // dibujar botones de geometría: use la geometría seleccionada para sktech
-        document
-          .getElementById("point-geometry-button")
-          .addEventListener("click", geometryButtonsClickHandler);
+                // dibujar botones de geometría: use la geometría seleccionada para sktech
+                document
+                    .getElementById("point-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
 
-        document
-          .getElementById("line-geometry-button")
-          .addEventListener("click", geometryButtonsClickHandler);
+                document
+                    .getElementById("line-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
 
-        document
-          .getElementById("polygon-geometry-button")
-          .addEventListener("click", geometryButtonsClickHandler);
-
-
-        function geometryButtonsClickHandler(event) {
-          const geometryType = event.target.value;
-          clearGeometry();
-          sketchViewModel.create(geometryType);
-        }
-
-        const bufferNumSlider = new Slider({
-          container: "bufferNum",
-          min: 0,
-          max: 500,
-          steps: 1,
-          labelsVisible: true,
-          precision: 0,
-          labelFormatFunction: function(value, type) {
-            return value.toString() + "m";
-          },
-          values: [0]
-        });
-        // obtener valores ingresados ​​por el usuario para el búfer
-        bufferNumSlider.on("value-change", bufferVariablesChanged);
-        function bufferVariablesChanged(event) {
-          bufferSize = event.value;
-          runQuery();
-        }
-        // Borre la geometría y configure el renderizador predeterminado
-        document
-          .getElementById("clearGeometry")
-          .addEventListener("click", clearGeometry);
-
-        // Borre la geometría y configure el renderizador predeterminado
-        function clearGeometry() {
-          sketchGeometry = null;
-          sketchViewModel.cancel();
-          sketchLayer.removeAll();
-          bufferLayer.removeAll();
-          clearHighlighting();
-          clearCharts();
-          resultDiv.style.display = "none";
-        }
-
-        // establecer la consulta de geometría en el SceneLayerView visible
-        var debouncedRunQuery = promiseUtils.debounce(function() {
-          if (!sketchGeometry) {
-            return;
-          }
-
-          resultDiv.style.display = "block";
-          updateBufferGraphic(bufferSize);
-          return promiseUtils.eachAlways([
-            queryStatistics(),
-            updateSceneLayer()
-          ]);
-        });
-
-        function runQuery() {
-          debouncedRunQuery().catch((error) => {
-            if (error.name === "AbortError") {
-              return;
-            }
-
-            console.error(error);
-          });
-        }
-
-        // Establecer el renderizador con objectIds
-        var highlightHandle = null;
-        function clearHighlighting() {
-          if (highlightHandle) {
-            highlightHandle.remove();
-            highlightHandle = null;
-          }
-        }
-
-        function highlightBuildings(objectIds) {
-          // Remove any previous highlighting
-          clearHighlighting();
-          const objectIdField = sceneLayer.objectIdField;
-          document.getElementById("count").innerHTML = objectIds.length;
-
-          highlightHandle = sceneLayerView.highlight(objectIds);
-        }
-
-        // actualizar el gráfico con buffer
-        function updateBufferGraphic(buffer) {
-          // agregar un gráfico de polígono para el búfer
-          if (buffer > 0) {
-            var bufferGeometry = geometryEngine.geodesicBuffer(
-              sketchGeometry,
-              buffer,
-              "meters"
-            );
-            if (bufferLayer.graphics.length === 0) {
-              bufferLayer.add(
-                new Graphic({
-                  geometry: bufferGeometry,
-                  symbol: sketchViewModel.polygonSymbol
-                })
-              );
-            } else {
-              bufferLayer.graphics.getItemAt(0).geometry = bufferGeometry;
-            }
-          } else {
-            bufferLayer.removeAll();
-          }
-        }
-
-        function updateSceneLayer() {
-          const query = sceneLayerView.createQuery();
-          query.geometry = sketchGeometry;
-          query.distance = bufferSize;
-          return sceneLayerView.queryObjectIds(query).then(highlightBuildings);
-        }
-       
-        var materialChart = null;
-
-        function queryStatistics() {
-          const statDefinitions = [
-            {
-              onStatisticField:
-                "CASE WHEN RECLASI = 'Area sin cobertura forestal' THEN 1 ELSE 0 END",
-              outStatisticFieldName: "Area_SinCobertura",
-              statisticType: "sum"
-            },
-            {
-              onStatisticField:
-                "CASE WHEN RECLASI = 'Bosque latifoliado' THEN 1 ELSE 0 END",
-              outStatisticFieldName: "bosque_latifoliado",
-              statisticType: "sum"
-            }
-          ];
-          const query = sceneLayerView.createQuery();
-          query.geometry = sketchGeometry;
-          query.distance = bufferSize;
-          query.outStatistics = statDefinitions;
-
-          return sceneLayerView.queryFeatures(query).then(function(result) {
-            const allStats = result.features[0].attributes;
-            updateChart(materialChart, [
-              allStats.Area_SinCobertura,
-              allStats.bosque_latifoliado
-            ]);
-          }, console.error);
-        }
-
-        // Actualiza la tabla dada con nuevos datos
-        function updateChart(chart, dataValues) {
-          chart.data.datasets[0].data = dataValues;
-          chart.update();
-        }
+                document
+                    .getElementById("polygon-geometry-button")
+                    .addEventListener("click", geometryButtonsClickHandler);
 
 
-        function createMaterialChart() {
-          const materialCanvas = document.getElementById("material-chart");
-          materialChart = new Chart(materialCanvas.getContext("2d"), {
-            type: "doughnut",
-            data: {
-              labels: ["Area Sin Cobertura", "Bosque latifoliado"],
-              datasets: [
-                {
-                  backgroundColor: [
-                    "#FD7F6F",
-                    "#7EB0D5"
-                  ],
-                  borderWidth: 0,
-                  data: [0, 0]
+                function geometryButtonsClickHandler(event) {
+                    const geometryType = event.target.value;
+                    clearGeometry();
+                    sketchViewModel.create(geometryType);
                 }
-              ]
-            },
-            options: {
-              responsive: false,
-              cutoutPercentage: 35,
-              legend: {
-                position: "bottom"
-              },
-              title: {
-                display: true,
-                text: "Building Material"
-              }
-            }
-          });
-        }
 
-        function clearCharts() {
-          updateChart(materialChart, [0, 0]);         
-          document.getElementById("count").innerHTML = 0;
-        }
+                const bufferNumSlider = new Slider({
+                    container: "bufferNum",
+                    min: 0,
+                    max: 500,
+                    steps: 1,
+                    labelsVisible: true,
+                    precision: 0,
+                    labelFormatFunction: function (value, type) {
+                        return value.toString() + "m";
+                    },
+                    values: [0]
+                });
+                // obtener valores ingresados ​​por el usuario para el búfer
+                bufferNumSlider.on("value-change", bufferVariablesChanged);
+                function bufferVariablesChanged(event) {
+                    bufferSize = event.value;
+                    runQuery();
+                }
+                // Borre la geometría y configure el renderizador predeterminado
+                document
+                    .getElementById("clearGeometry")
+                    .addEventListener("click", clearGeometry);
 
-        createMaterialChart();
-      });
+                // Borre la geometría y configure el renderizador predeterminado
+                function clearGeometry() {
+                    sketchGeometry = null;
+                    sketchViewModel.cancel();
+                    sketchLayer.removeAll();
+                    bufferLayer.removeAll();
+                    clearHighlighting();
+                    clearCharts();
+                    resultDiv.style.display = "none";
+                }
+
+                // establecer la consulta de geometría en el SceneLayerView visible
+                var debouncedRunQuery = promiseUtils.debounce(function () {
+                    if (!sketchGeometry) {
+                        return;
+                    }
+
+                    resultDiv.style.display = "block";
+                    updateBufferGraphic(bufferSize);
+                    return promiseUtils.eachAlways([
+                        queryStatistics(),
+                        updateSceneLayer()
+                    ]);
+                });
+
+                function runQuery() {
+                    debouncedRunQuery().catch((error) => {
+                        if (error.name === "AbortError") {
+                            return;
+                        }
+
+                        console.error(error);
+                    });
+                }
+
+                // Establecer el renderizador con objectIds
+                var highlightHandle = null;
+                function clearHighlighting() {
+                    if (highlightHandle) {
+                        highlightHandle.remove();
+                        highlightHandle = null;
+                    }
+                }
+
+                function highlightBuildings(objectIds) {
+                    // Remove any previous highlighting
+                    clearHighlighting();
+                    const objectIdField = sceneLayer.objectIdField;
+                    document.getElementById("count").innerHTML = objectIds.length;
+
+                    highlightHandle = sceneLayerView.highlight(objectIds);
+                }
+
+                // actualizar el gráfico con buffer
+                function updateBufferGraphic(buffer) {
+                    // agregar un gráfico de polígono para el búfer
+                    if (buffer > 0) {
+                        var bufferGeometry = geometryEngine.geodesicBuffer(
+                            sketchGeometry,
+                            buffer,
+                            "meters"
+                        );
+                        if (bufferLayer.graphics.length === 0) {
+                            bufferLayer.add(
+                                new Graphic({
+                                    geometry: bufferGeometry,
+                                    symbol: sketchViewModel.polygonSymbol
+                                })
+                            );
+                        } else {
+                            bufferLayer.graphics.getItemAt(0).geometry = bufferGeometry;
+                        }
+                    } else {
+                        bufferLayer.removeAll();
+                    }
+                }
+
+                function updateSceneLayer() {
+                    const query = sceneLayerView.createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    return sceneLayerView.queryObjectIds(query).then(highlightBuildings);
+                }
+
+                var materialChart = null;
+
+                function queryStatistics() {
+                    const statDefinitions = [
+                        {
+                            onStatisticField:
+                                "CASE WHEN RECLASI = 'Area sin cobertura forestal' THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "Area_SinCobertura",
+                            statisticType: "sum"
+                        },
+                        {
+                            onStatisticField:
+                                "CASE WHEN RECLASI = 'Bosque latifoliado' THEN 1 ELSE 0 END",
+                            outStatisticFieldName: "bosque_latifoliado",
+                            statisticType: "sum"
+                        }
+                    ];
+                    const query = sceneLayerView.createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    query.outStatistics = statDefinitions;
+
+                    return sceneLayerView.queryFeatures(query).then(function (result) {
+                        const allStats = result.features[0].attributes;
+                        updateChart(materialChart, [
+                            allStats.Area_SinCobertura,
+                            allStats.bosque_latifoliado
+                        ]);
+                    }, console.error);
+                }
+
+                // Actualiza la tabla dada con nuevos datos
+                function updateChart(chart, dataValues) {
+                    chart.data.datasets[0].data = dataValues;
+                    chart.update();
+                }
+
+
+                function createMaterialChart() {
+                    const materialCanvas = document.getElementById("material-chart");
+                    materialChart = new Chart(materialCanvas.getContext("2d"), {
+                        type: "doughnut",
+                        data: {
+                            labels: ["Area Sin Cobertura", "Bosque latifoliado"],
+                            datasets: [
+                                {
+                                    backgroundColor: [
+                                        "#FD7F6F",
+                                        "#7EB0D5"
+                                    ],
+                                    borderWidth: 0,
+                                    data: [0, 0]
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: false,
+                            cutoutPercentage: 35,
+                            legend: {
+                                position: "bottom"
+                            },
+                            title: {
+                                display: true,
+                                text: "Building Material"
+                            }
+                        }
+                    });
+                }
+
+                function clearCharts() {
+                    updateChart(materialChart, [0, 0]);
+                    document.getElementById("count").innerHTML = 0;
+                }
+
+                createMaterialChart();
+            });
     </script>
-  </head>
+</head>
 
-  <body>
+<body>
     <div id="viewDiv"></div>
     <div id="queryDiv" class="esri-widget">
-      <b>Query by geometry</b><br />
-      <br />Draw a geometry to query by:
-      <div class="geometry-options">
-        <button
-          class="esri-widget--button esri-icon-map-pin geometry-button"
-          id="point-geometry-button"
-          value="point"
-          title="Query by point"
-        ></button>
-        <button
-          class="esri-widget--button esri-icon-polyline geometry-button"
-          id="line-geometry-button"
-          value="polyline"
-          title="Query by line"
-        ></button>
-        <button
-          class="esri-widget--button esri-icon-polygon geometry-button"
-          id="polygon-geometry-button"
-          value="polygon"
-          title="Query by polygon"
-        ></button>
-      </div>
-      <br />
-      <div class="tooltip">
-        <label for="bufferNum">Establecer tamaño del buffer:</label>
-        <div id="bufferNum"></div>
-      </div>
-      <br />
-      <button class="esri-button" id="clearGeometry" type="button">
-        Borrar
-      </button>
+        <b>Query by geometry</b><br />
+        <br />Draw a geometry to query by:
+        <div class="geometry-options">
+            <button class="esri-widget--button esri-icon-map-pin geometry-button"
+                    id="point-geometry-button"
+                    value="point"
+                    title="Query by point"></button>
+            <button class="esri-widget--button esri-icon-polyline geometry-button"
+                    id="line-geometry-button"
+                    value="polyline"
+                    title="Query by line"></button>
+            <button class="esri-widget--button esri-icon-polygon geometry-button"
+                    id="polygon-geometry-button"
+                    value="polygon"
+                    title="Query by polygon"></button>
+        </div>
+        <br />
+        <div class="tooltip">
+            <label for="bufferNum">Establecer tamaño del buffer:</label>
+            <div id="bufferNum"></div>
+        </div>
+        <br />
+        <button class="esri-button" id="clearGeometry" type="button">
+            Borrar
+        </button>
     </div>
 
     <div id="resultDiv" class="esri-widget">
-      <div class="count">
-        Resultados de la seleccion:
-        <div class="count" id="count">0</div>
-      </div>
-      <div class="charts">
-        <div>
-          <canvas id="material-chart" width="250" height="300" />
+        <div class="count">
+            Resultados de la seleccion:
+            <div class="count" id="count">0</div>
         </div>
-      </div>
+        <div class="charts">
+            <div>
+                <canvas id="material-chart" width="250" height="300" />
+            </div>
+        </div>
     </div>
-  </body>
+</body>
 </html>

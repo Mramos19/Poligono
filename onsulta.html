@@ -1,0 +1,482 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>SceneLayerView - query statistics by geometry - 4.12</title>
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+      }
+      .esri-ui-top-right {
+        max-height: 100%;
+      }
+      #queryDiv,
+      #resultDiv {
+        min-width: 250px;
+        font-size: 14px;
+        padding: 10px;
+        display: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .geometry-options {
+        display: flex;
+        flex-direction: row;
+      }
+      .geometry-button {
+        flex: 1;
+        border-style: solid;
+        border-width: 1px;
+        border-image: none;
+      }
+      .geometry-button-selected {
+        background: #4c4c4c;
+        color: #fff;
+      }
+      #bufferNum {
+        width: 90%;
+        margin: 2.5em auto 0;
+      }
+      .count {
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: bold;
+        display: inline-block;
+      }
+    </style>
+    <!-- Load the Chart.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.12/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.12/"></script>
+    <script>
+        var consulta = [0];
+        //consulta altitud
+        //consulta.push();
+        //Variable global que indicara la capa en seleccion
+        var IndexCapa = 0;
+
+        //variable que decidira si se ejecutaran la consulta de todos los parametros de todas las capas
+        var Todas = false;
+
+        //Definiendo las capas
+        var Capas = ['Altitud','Temperatura','Precipitacion','Suelos'];
+
+        var Campos =['Elevacion','DESCRIP','DESCRIP','suelo'];
+    </script>
+    <script>
+      require([
+        "esri/WebScene",
+        "esri/views/SceneView",
+        "esri/layers/GraphicsLayer",
+        "esri/widgets/Sketch/SketchViewModel",
+        "esri/widgets/Slider",
+        "esri/geometry/geometryEngine",
+        "esri/Graphic",
+        "esri/core/promiseUtils"
+      ], function(
+        WebScene,
+        SceneView,
+        GraphicsLayer,
+        SketchViewModel,
+        Slider,
+        geometryEngine,
+        Graphic,
+        promiseUtils
+      ) {
+        // Estableciendo la escena para luego cargarla en el la vista escena
+        const webscene = new WebScene({
+          portalItem: {
+            id: "bab78a25857a4d889e636fb2d094f3a2"
+          }
+        });
+        // Creando la vista de la escena con el web escena
+        const view = new SceneView({
+          container: "viewDiv",
+          map: webscene
+        });
+        window.view = view;
+        // agregar un GraphicsLayer para los bocetos y el búfer
+        const sketchLayer = new GraphicsLayer();
+        const bufferLayer = new GraphicsLayer();
+        view.map.addMany([bufferLayer, sketchLayer]);
+        var sceneLayer = [0];
+        var sceneLayerView = [0];
+        let bufferSize = 0;
+        // Asigne la capa de escena una vez que se carga webscene e inicialice la interfaz de usuario
+        webscene.load().then(function() {
+
+            for(var i=0; i<4; i++){
+
+                //Estableciendo las escenas
+                sceneLayer[i] = webscene.layers.find(function(layer) {           
+                    //console.log(layer);
+                    //Buscando las capas por medio del titulo
+                    return layer.title ===Capas[i];
+                });
+                
+                console.log(Capas[i]);
+                console.log(Campos[i]);
+                //Estableciendo los campos
+                sceneLayer[i].outFields = [Campos[i]];
+
+                view.whenLayerView(sceneLayer[i]).then(function(layerView) {
+                    //debugger;
+                    sceneLayerView[i] = layerView;
+                    queryDiv.style.display = "block";
+                    console.log(sceneLayerView[IndexCapa]);
+                });
+
+            } // fin del for
+
+        });
+
+        view.watch("updating", function(updating) {
+          if (!updating) {
+            runQuery();
+          }
+        });
+        view.ui.add([queryDiv], "bottom-left");
+        view.ui.add([resultDiv], "top-right");
+        // use SketchViewModel para dibujar polígonos que se usan como consulta
+        let sketchGeometry = null;
+        const sketchViewModel = new SketchViewModel({
+          layer: sketchLayer,
+          defaultUpdateOptions: {
+            tool: "reshape",
+            toggleToolOnClick: false
+          },
+          view: view
+        });
+        sketchViewModel.on("create", function(event) {
+          if (event.state === "complete") {
+            sketchGeometry = event.graphic.geometry;
+            runQuery();
+          }
+        });
+
+        sketchViewModel.on("update", function(event) {
+          if (event.state !== "cancel" && event.graphics.length) {
+            sketchGeometry = event.graphics[0].geometry;           
+            runQuery();
+          }
+        });
+
+        // dibujar botones de geometría: use la geometría seleccionada para sktech
+        document
+          .getElementById("point-geometry-button")
+          .addEventListener("click", geometryButtonsClickHandler);
+        document
+          .getElementById("line-geometry-button")
+          .addEventListener("click", geometryButtonsClickHandler);
+        document
+          .getElementById("polygon-geometry-button")
+          .addEventListener("click", geometryButtonsClickHandler);
+
+        function geometryButtonsClickHandler(event) {
+          const geometryType = event.target.value;
+          clearGeometry();
+          sketchViewModel.create(geometryType);
+        }
+        const bufferNumSlider = new Slider({
+          container: "bufferNum",
+          min: 0,
+          max: 500,
+          steps: 1,
+          labelsVisible: true,
+          precision: 0,
+          labelFormatFunction: function(value, type) {
+            return value.toString() + "m";
+          },
+          values: [0]
+        });
+
+        // obtener valores ingresados ​​por el usuario para el búfer
+        bufferNumSlider.on("value-change", bufferVariablesChanged);
+        function bufferVariablesChanged(event) {
+          bufferSize = event.value;
+          runQuery();
+        }
+        // Borre la geometría y configure el renderizador predeterminado
+        document
+          .getElementById("clearGeometry")
+          .addEventListener("click", clearGeometry);
+        // Borre la geometría y configure el renderizador predeterminado
+        function clearGeometry() {
+          sketchGeometry = null;
+          sketchViewModel.cancel();
+          sketchLayer.removeAll();
+          bufferLayer.removeAll();
+          clearHighlighting();
+          clearCharts();
+          resultDiv.style.display = "none";
+        }
+        // establecer la consulta de geometría en el SceneLayerView visible
+        var debouncedRunQuery = promiseUtils.debounce(function() {
+          if (!sketchGeometry) {
+            return;
+          }
+          resultDiv.style.display = "block";
+          updateBufferGraphic(bufferSize);
+          return promiseUtils.eachAlways([
+            queryStatistics(),
+            updateSceneLayer()
+          ]);
+        });
+
+
+        function runQuery() {
+            //Establecer que capas se van a mostrar y los parametros
+            Todas = false;
+            IndexCapa = 0;
+
+          debouncedRunQuery().catch((error) => {
+            if (error.name === "AbortError") {
+              return;
+            }
+            console.error(error);
+          });
+        }
+
+
+        // Establecer el renderizador con objectIds
+        var highlightHandle = null;
+        function clearHighlighting() {
+          if (highlightHandle) {
+            highlightHandle.remove();
+            highlightHandle = null;
+          }
+        }
+
+        function highlightBuildings(objectIds) {
+          // Remove any previous highlighting
+          clearHighlighting();
+
+          const objectIdField = null;
+          //Obteniendo el Object Id por segun la capa seleccionada
+          if (Todas){
+            
+            for(var i=0; i<4; i++){
+                objectIdField = sceneLayer[i].objectIdField;
+                document.getElementById("count").innerHTML = objectIds.length;
+                highlightHandle = sceneLayerView[i].highlight(objectIds);
+            }
+          }else{
+              objectIdField = sceneLayer[IndexCapa].objectIdField;
+              document.getElementById("count").innerHTML = objectIds.length;
+              highlightHandle = sceneLayerView[IndexCapa].highlight(objectIds);
+          }
+          
+        }
+        // actualizar el gráfico con buffer
+        function updateBufferGraphic(buffer) {
+          // agregar un gráfico de polígono para el búfer
+          if (buffer > 0) {
+            var bufferGeometry = geometryEngine.geodesicBuffer(
+              sketchGeometry,
+              buffer,
+              "meters"
+            );
+            if (bufferLayer.graphics.length === 0) {
+              bufferLayer.add(
+                new Graphic({
+                  geometry: bufferGeometry,
+                  symbol: sketchViewModel.polygonSymbol
+                })
+              );
+            } else {
+              bufferLayer.graphics.getItemAt(0).geometry = bufferGeometry;
+            }
+          } else {
+            bufferLayer.removeAll();
+          }
+        }
+
+        function updateSceneLayer() {
+
+            const query =null;
+
+            if (Todas){
+                for(var i=0; i<4; i++){
+                    query = sceneLayerView[i].createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    return sceneLayerView[i].queryObjectIds(query).then(highlightBuildings);
+                }
+            }else{
+                query = sceneLayerView[IndexCapa].createQuery();
+                    query.geometry = sketchGeometry;
+                    query.distance = bufferSize;
+                    return sceneLayerView[IndexCapa].queryObjectIds(query).then(highlightBuildings);
+            }
+          
+        }
+       
+        var materialChart = null;
+        function queryStatistics() {
+
+            if (Todas){
+
+            }else{
+                
+              const statDefinitions = [
+                                    {
+                                    onStatisticField:
+                                        "CASE WHEN Elevacion = 'Elevación 0' THEN 1 ELSE 0 END",
+                                    outStatisticFieldName: "Elevacion_0",
+                                    statisticType: "sum"
+                                    },
+                                    {
+                                    onStatisticField:
+                                        "CASE WHEN Elevacion = 'Elevación 0-399' THEN 1 ELSE 0 END",
+                                    outStatisticFieldName: "Elevacion_0_399",
+                                    statisticType: "sum"
+                                    },
+                                    {
+                                    onStatisticField:
+                                        "CASE WHEN Elevacion = 'Elevación 400-799' THEN 1 ELSE 0 END",
+                                    outStatisticFieldName: "Elevacion_400_799",
+                                    statisticType: "sum"
+                                    },
+                                    {
+                                    onStatisticField:
+                                        "CASE WHEN Elevacion = 'Elevación 799-1199' THEN 1 ELSE 0 END",
+                                    outStatisticFieldName: "Elevacion_799_1199",
+                                    statisticType: "sum"
+                                    }
+                                ];
+
+                               
+                            
+                                const query  = sceneLayerView[IndexCapa].createQuery();
+                                query.geometry = sketchGeometry;
+                                query.distance = bufferSize;
+                                query.outStatistics = statDefinitions;
+
+                                return sceneLayerView[IndexCapa].queryFeatures(query).then(function(result) {
+                                    const allStats = result.features[0].attributes;
+
+                                    updateChart(materialChart, [
+                                    allStats.Elevacion_0,
+                                    allStats.Elevacion_0_399,
+                                    allStats.Elevacion_400_799,
+                                    allStats.Elevacion_799_1199
+                                    ]);
+                                }, console.error);
+            }
+        }
+
+        // Actualiza la tabla dada con nuevos datos
+        function updateChart(chart, dataValues) {
+          chart.data.datasets[0].data = dataValues;
+          chart.update();
+        }
+
+        function createMaterialChart() {
+          const materialCanvas = document.getElementById("material-chart");
+          materialChart = new Chart(materialCanvas.getContext("2d"), {
+            type: "doughnut",
+            data: {
+              labels: ["Elevacion 0", "Elevacion de 0 a 399","Elevacion de 400 a 799","Elevacion de 800 a 1199"],
+              datasets: [
+                {
+                  backgroundColor: [
+                    "#FD7F6F",
+                    "#7EB0D5",
+                    "#7EB8D8",
+                    "#7EB1D9"
+                  ],
+                  borderWidth: 0,
+                  data: [0, 0,0,0]
+                }
+              ]
+            },
+            options: {
+              responsive: false,
+              cutoutPercentage: 35,
+              legend: {
+                position: "bottom"
+              },
+              title: {
+                display: true,
+                text: "Altitud"
+              }
+            }
+          });
+        }
+
+        function clearCharts() {
+          updateChart(materialChart, [0, 0, 0, 0]);         
+          document.getElementById("count").innerHTML = 0;
+        }
+
+        createMaterialChart();
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="viewDiv"></div>
+    <div id="queryDiv" class="esri-widget">
+      <b>Query by geometry</b><br />
+      <br />Draw a geometry to query by:
+      <div class="geometry-options">
+        <button
+          class="esri-widget--button esri-icon-map-pin geometry-button"
+          id="point-geometry-button"
+          value="point"
+          title="Query by point"
+        ></button>
+        <button
+          class="esri-widget--button esri-icon-polyline geometry-button"
+          id="line-geometry-button"
+          value="polyline"
+          title="Query by line"
+        ></button>
+        <button
+          class="esri-widget--button esri-icon-polygon geometry-button"
+          id="polygon-geometry-button"
+          value="polygon"
+          title="Query by polygon"
+        ></button>
+      </div>
+      <br />
+      <div class="tooltip">
+        <label for="bufferNum">Establecer tamaño del buffer:</label>
+        <div id="bufferNum"></div>
+      </div>
+      <br />
+      <button class="esri-button" id="clearGeometry" type="button">
+        Borrar
+      </button>
+    </div>
+
+    <div id="resultDiv" class="esri-widget">
+      <div class="count">
+        Resultados de la seleccion:
+        <div class="count" id="count">0</div>
+      </div>
+      <div class="charts">
+        <div>
+            Altitud:
+          <canvas id="material-chart" width="250" height="300" />
+        </div>
+        <div>
+                Temperatura:
+              <canvas id="material-chart1" width="250" height="300" />
+            </div>
+      </div>
+    </div>
+  </body>
+</html>
